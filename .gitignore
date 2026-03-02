@@ -1,0 +1,16 @@
+## Build
+[Bb]in/
+[Oo]bj/
+
+## IDE/cache
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Artifacts
+*.nupkg
+*.snupkg
+*.pdb
+*.log

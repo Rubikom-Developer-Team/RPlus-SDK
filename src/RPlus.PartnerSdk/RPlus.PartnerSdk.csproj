@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>RPlus.PartnerSdk</PackageId>
+    <Authors>RPlus</Authors>
+    <Description>POS-agnostic SDK for RPlus Partner Scan API (scan, orders/closed, orders/cancelled) with HMAC signing, idempotency and retries.</Description>
+    <RepositoryUrl>https://example.invalid/rplus/partner-sdk</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>
