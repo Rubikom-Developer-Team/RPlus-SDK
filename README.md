@@ -43,6 +43,21 @@ CI runs on every push and pull request for:
 Workflow file:
 - `.github/workflows/ci.yml`
 
+## Релизы
+
+Автоматический workflow релиза:
+- `.github/workflows/release.yml`
+
+Как выпустить новую версию:
+1. Создать тег формата `vX.Y.Z` (например `v1.1.0`).
+2. Запушить тег в GitHub.
+3. Workflow сам:
+  - соберет и протестирует SDK,
+  - сформирует `.nupkg` и `.snupkg`,
+  - создаст GitHub Release с артефактами.
+
+Опционально: если в репозитории задан секрет `NUGET_API_KEY`, пакеты автоматически публикуются в NuGet.org.
+
 ## Установка
 
 Сейчас самый простой путь: project reference или исходники из репозитория.
