@@ -1,0 +1,45 @@
+name: SDK CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-test-pack:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore RPlus.PartnerSdk-dotnet.sln
+
+      - name: Build
+        run: dotnet build RPlus.PartnerSdk-dotnet.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/RPlus.PartnerSdk.Tests/RPlus.PartnerSdk.Tests.csproj -c Release --no-build
+
+      - name: Pack SDK
+        run: dotnet pack src/RPlus.PartnerSdk/RPlus.PartnerSdk.csproj -c Release --no-build -o artifacts
+
+      - name: Pack SQLite
+        run: dotnet pack src/RPlus.PartnerSdk.Sqlite/RPlus.PartnerSdk.Sqlite.csproj -c Release --no-build -o artifacts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rplus-sdk-nuget-${{ matrix.os }}
+          path: artifacts/*.nupkg

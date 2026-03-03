@@ -1,15 +1,37 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>RPlus.PartnerSdk.Sqlite</PackageId>
+    <Authors>RPlus</Authors>
+    <Description>SQLite storage adapters for reliable RPlus SDK queues.</Description>
+    <PackageTags>rplus;pos;sdk;sqlite;queue;offline</PackageTags>
+    <PackageProjectUrl>https://github.com/Rubikom-Developer-Team/RPlus-SDK</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Rubikom-Developer-Team/RPlus-SDK</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\\RPlus.PartnerSdk\\RPlus.PartnerSdk.csproj" />
+    <ProjectReference Include="..\RPlus.PartnerSdk\RPlus.PartnerSdk.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.2" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.8" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
   </ItemGroup>
 
 </Project>

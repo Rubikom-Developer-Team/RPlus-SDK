@@ -1,20 +1,35 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
 
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>RPlus.PartnerSdk</PackageId>
     <Authors>RPlus</Authors>
     <Description>POS-agnostic SDK for RPlus Partner Scan API (scan, orders/closed, orders/cancelled) with HMAC signing, idempotency and retries.</Description>
-    <RepositoryUrl>https://example.invalid/rplus/partner-sdk</RepositoryUrl>
+    <PackageTags>rplus;pos;loyalty;sdk;discount;integration</PackageTags>
+    <PackageProjectUrl>https://github.com/Rubikom-Developer-Team/RPlus-SDK</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Rubikom-Developer-Team/RPlus-SDK</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
   </ItemGroup>
 
 </Project>

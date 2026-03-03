@@ -33,6 +33,16 @@ SDK закрывает типовой поток:
   - .NET Framework 4.7.2+
   - .NET 6/7/8+
 
+## Cross-platform status
+
+CI runs on every push and pull request for:
+- Windows
+- Linux
+- macOS
+
+Workflow file:
+- `.github/workflows/ci.yml`
+
 ## Установка
 
 Сейчас самый простой путь: project reference или исходники из репозитория.
