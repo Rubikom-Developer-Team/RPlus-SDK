@@ -17,6 +17,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
     steps:
       - name: Checkout
@@ -84,9 +86,7 @@ jobs:
             artifacts/*.snupkg
 
       - name: Publish to NuGet (optional)
-        if: ${{ secrets.NUGET_API_KEY != '' }}
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        if: ${{ env.NUGET_API_KEY != '' }}
         shell: bash
         run: |
           dotnet nuget push artifacts/*.nupkg \
