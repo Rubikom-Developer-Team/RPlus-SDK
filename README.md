@@ -1,92 +1,254 @@
 # RPlus.PartnerSdk (.NET)
 
-This folder contains a standalone .NET SDK for the RPlus Partner Scan API.
-It is meant to be reused by POS adapters (iiko, r_keeper, custom POS, etc.).
+Публичный SDK для интеграции POS-систем с API программы лояльности RPlus.
 
-Build:
+SDK закрывает типовой поток:
+1. Проверка QR/OTP (`scan`/`shortcode`).
+2. Передача финала заказа (`orders/closed`).
+3. Передача отмены (`orders/cancelled`).
+4. Отправка событий/телеметрии (`events`).
+
+Подходит для iiko, r_keeper и любых кастомных POS-решений на .NET.
+
+## Что умеет SDK
+
+- Упрощает работу с HTTP API (готовый `PartnerClient`).
+- Автоматически ставит служебные заголовки (`X-Integration-Key`, `Idempotency-Key`, `X-Trace-Id`).
+- Поддерживает HMAC-подпись запросов:
+  - `X-Integration-Signature`
+  - `X-Integration-Timestamp`
+- Нормализует OTP (в scan-запросах).
+- Даёт надежные очереди с ретраями:
+  - `ReliableCommitQueue` для `orders/closed` и `orders/cancelled`
+  - `ReliableEventQueue` для `events`
+- Есть 2 варианта хранения очереди:
+  - JSON-файлы (`FileCommitQueueStore`, `FileEventQueueStore`)
+  - SQLite (проект `RPlus.PartnerSdk.Sqlite`)
+
+## Совместимость
+
+- `RPlus.PartnerSdk`: `netstandard2.0`
+- `RPlus.PartnerSdk.Sqlite`: `netstandard2.0`
+- Работает с:
+  - .NET Framework 4.7.2+
+  - .NET 6/7/8+
+
+## Установка
+
+Сейчас самый простой путь: project reference или исходники из репозитория.
+
+Пример:
+
+```xml
+<ItemGroup>
+  <ProjectReference Include="src\RPlus.PartnerSdk\RPlus.PartnerSdk.csproj" />
+</ItemGroup>
+```
+
+Если нужен SQLite-стор:
+
+```xml
+<ItemGroup>
+  <ProjectReference Include="src\RPlus.PartnerSdk.Sqlite\RPlus.PartnerSdk.Sqlite.csproj" />
+</ItemGroup>
+```
+
+## Сборка
 
 ```powershell
 cd sdk
-dotnet build .\\RPlus.PartnerSdk-dotnet.sln -c Release
+dotnet build .\RPlus.PartnerSdk-dotnet.sln -c Release
 ```
 
-## Usage
+## Быстрый старт (минимальная интеграция)
+
+```csharp
+using RPlus.PartnerSdk.Http;
+using RPlus.PartnerSdk.Models;
+
+var client = new PartnerClient(new PartnerSdkOptions
+{
+  BaseUrl = "https://api.example.com",
+  IntegrationKey = "pk_live_xxx",
+  SigningSecret = "sk_live_xxx", // обязателен для orders/closed
+  UserAgent = "mypos/1.0 rplus-sdk/1.0"
+});
+
+// 1) Сканирование QR или OTP
+var scan = await client.ScanAsync(
+  new ScanRequest
+  {
+    QrToken = "eyJhbGciOi...", // или OtpCode = "123456"
+    OrderId = "order-123",
+    OrderSum = 14985.00m,
+    TerminalId = "POS-01",
+    CashierId = "cashier-1",
+    Context = "partner"
+  },
+  idempotencyKey: Guid.NewGuid().ToString(),
+  traceId: Guid.NewGuid().ToString("N")
+);
+
+// 2) После успешной оплаты отправляем closed
+await client.OrderClosedAsync(new OrderClosedRequest
+{
+  ScanId = scan.ScanId,
+  OrderId = "order-123",
+  ClosedAt = DateTimeOffset.UtcNow,
+  FinalOrderTotal = 14486.00m
+});
+```
+
+## Типовой флоу для POS
+
+1. Кассир сканирует QR или вводит OTP.
+2. POS вызывает `ScanAsync(...)`.
+3. POS применяет скидку в заказ.
+4. Заказ оплачен:
+  - вызвать `OrderClosedAsync(...)`.
+5. Если применение отменено/заказ отменён:
+  - вызвать `OrderCancelledAsync(...)` (с reason).
+
+Рекомендуется всегда передавать:
+- `OrderId`
+- `TerminalId`
+- `CashierId`
+- `Idempotency-Key`
+- `X-Trace-Id`
+
+## Надежный режим (очередь + ретраи)
+
+Для реальной эксплуатации лучше не блокировать кассу сетью.  
+Используйте очереди SDK: запись локально + фоновая отправка.
+
+### Вариант 1: JSON-файлы
 
 ```csharp
 using RPlus.PartnerSdk.Http;
 using RPlus.PartnerSdk.Models;
 using RPlus.PartnerSdk.Reliability;
-// Optional (separate project): using RPlus.PartnerSdk.Sqlite;
 
 var client = new PartnerClient(new PartnerSdkOptions
 {
   BaseUrl = "https://api.example.com",
-  IntegrationKey = "pk_live_...",
-  SigningSecret = "sk_live_...", // required for orders/closed
-  UserAgent = "mypos/1.0 rplus-sdk/1.0"
+  IntegrationKey = "pk_live_xxx",
+  SigningSecret = "sk_live_xxx"
 });
 
-var scan = await client.ScanAsync(new ScanRequest
-{
-  QrToken = "eyJhbGciOi...",
-  OrderId = "order-123",
-  OrderSum = 2500.00m,
-  TerminalId = "POS-01",
-  CashierId = "cashier-1",
-  Context = "partner"
-}, idempotencyKey: Guid.NewGuid().ToString(), traceId: "trace-123");
-
-// Reliable (soft-mode) commit: enqueue and let background worker retry on network/5xx.
-var store = new FileCommitQueueStore("C:\\\\posdata\\\\rplus_pending_commits.json");
-var queue = new ReliableCommitQueue("https://api.example.com", client, store);
-await queue.InitializeAsync();
-queue.Start();
-
-await queue.EnqueueOrderClosedAsync(new OrderClosedRequest
-{
-  ScanId = scan.ScanId,
-  OrderId = "order-123",
-  ClosedAt = DateTimeOffset.UtcNow,
-  FinalOrderTotal = 17025.00m
-});
-
-// Optional: reliable telemetry/events (do not block POS).
-var eventsStore = new FileEventQueueStore("C:\\\\posdata\\\\rplus_events.json");
-var events = new ReliableEventQueue("https://api.example.com", client, eventsStore);
-await events.InitializeAsync();
-events.Start();
-await events.EnqueueAsync(new PartnerEvent
-{
-  Type = "scan_succeeded",
-  ScanId = scan.ScanId,
-  OrderId = "order-123",
-  TerminalId = "POS-01",
-  Details = new System.Collections.Generic.Dictionary<string, string>
-  {
-    ["discountUser"] = scan.DiscountUser.ToString("F2"),
-    ["discountPartner"] = scan.DiscountPartner.ToString("F2"),
-  }
-});
-```
-
-## SQLite Stores (Optional)
-
-If you want a single local database instead of JSON files, use the separate project `RPlus.PartnerSdk.Sqlite`:
-
-```csharp
-using RPlus.PartnerSdk.Sqlite;
-
-var commitStore = new SqliteCommitQueueStore("C:\\\\posdata\\\\rplus_queue.db");
+var commitStore = new FileCommitQueueStore(@"C:\posdata\rplus_commits.json");
 var commitQueue = new ReliableCommitQueue("https://api.example.com", client, commitStore);
 await commitQueue.InitializeAsync();
 commitQueue.Start();
 
-var eventStore = new SqliteEventQueueStore("C:\\\\posdata\\\\rplus_queue.db");
+await commitQueue.EnqueueOrderClosedAsync(new OrderClosedRequest
+{
+  ScanId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+  OrderId = "order-123",
+  ClosedAt = DateTimeOffset.UtcNow,
+  FinalOrderTotal = 14486.00m
+});
+
+var eventStore = new FileEventQueueStore(@"C:\posdata\rplus_events.json");
+var eventQueue = new ReliableEventQueue("https://api.example.com", client, eventStore);
+await eventQueue.InitializeAsync();
+eventQueue.Start();
+
+await eventQueue.EnqueueAsync(new PartnerEvent
+{
+  Type = "scan_succeeded",
+  OrderId = "order-123",
+  TerminalId = "POS-01"
+});
+```
+
+### Вариант 2: SQLite
+
+```csharp
+using RPlus.PartnerSdk.Http;
+using RPlus.PartnerSdk.Reliability;
+using RPlus.PartnerSdk.Sqlite;
+
+var client = new PartnerClient(new PartnerSdkOptions
+{
+  BaseUrl = "https://api.example.com",
+  IntegrationKey = "pk_live_xxx",
+  SigningSecret = "sk_live_xxx"
+});
+
+var commitStore = new SqliteCommitQueueStore(@"C:\posdata\rplus_queue.db");
+var commitQueue = new ReliableCommitQueue("https://api.example.com", client, commitStore);
+await commitQueue.InitializeAsync();
+commitQueue.Start();
+
+var eventStore = new SqliteEventQueueStore(@"C:\posdata\rplus_queue.db");
 var eventQueue = new ReliableEventQueue("https://api.example.com", client, eventStore);
 await eventQueue.InitializeAsync();
 eventQueue.Start();
 ```
 
-## Contract
+## Обработка ошибок
 
-See `POS_INTEGRATION_SPEC_V1.md` in the main plugin folder for the server contract (headers, signing, idempotency).
+Основное исключение SDK: `PartnerApiException`.
+
+Что можно получить:
+- `StatusCode` (HTTP-код)
+- `ErrorCode` (код ошибки сервера, если есть)
+- `ResponseBody` (сырой ответ сервера)
+
+Пример:
+
+```csharp
+try
+{
+  await client.OrderClosedAsync(request);
+}
+catch (PartnerApiException ex)
+{
+  Console.WriteLine($"HTTP={(int)ex.StatusCode}, code={ex.ErrorCode}");
+  Console.WriteLine(ex.ResponseBody);
+}
+```
+
+## Логирование и безопасность
+
+В `PartnerClient` можно передать `traceLogger`:
+
+```csharp
+var client = new PartnerClient(options, traceLogger: line => Console.WriteLine(line));
+```
+
+SDK маскирует чувствительные значения в логах:
+- токены/подписи в headers
+- `qrToken` и `otpCode` в body
+
+## Базовые рекомендации по эксплуатации
+
+- Для кассового ПО используйте очереди (`ReliableCommitQueue`, `ReliableEventQueue`), а не "чистые" прямые вызовы.
+- Храните локальные файлы очередей в папке с правами на запись для POS-процесса.
+- Передавайте стабильный `Idempotency-Key` для повторяемых операций.
+- Всегда корректно закрывайте очередь при остановке приложения:
+  - `await queue.StopAsync();`
+
+## Структура репозитория
+
+```text
+sdk/
+  src/
+    RPlus.PartnerSdk/           // основной SDK (HTTP, models, reliability)
+    RPlus.PartnerSdk.Sqlite/    // optional SQLite stores
+  RPlus.PartnerSdk-dotnet.sln
+  README.md
+```
+
+## Планы публикации
+
+Репозиторий готов для публичного GitHub.  
+При необходимости можно добавить:
+- NuGet package publish pipeline
+- GitHub Actions (build/test/pack)
+- versioning policy (SemVer)
+
+## Контракт API
+
+Контракт серверных endpoint и бизнес-правила интеграции описаны в основном проекте:
+- `project/docs/POS_INTEGRATION_SPEC_V1.md`
