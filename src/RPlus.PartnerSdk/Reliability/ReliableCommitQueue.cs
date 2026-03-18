@@ -81,10 +81,11 @@ public sealed class ReliableCommitQueue : IDisposable
     if (string.IsNullOrWhiteSpace(req.OrderId)) throw new ArgumentException("OrderId is required.", nameof(req));
 
     string raw = JsonUtil.Serialize(req);
+    string idempotencyKey = BuildOrderClosedIdempotencyKey(req);
     CommitQueueEntry entry = new CommitQueueEntry
     {
       Endpoint = CommitEndpoint.OrdersClosed,
-      IdempotencyKey = req.ScanId.ToString(),
+      IdempotencyKey = idempotencyKey,
       TraceId = traceId,
       BodyJson = raw,
       CreatedAtUtc = DateTimeOffset.UtcNow,
@@ -293,7 +294,7 @@ public sealed class ReliableCommitQueue : IDisposable
     {
       try
       {
-        if (Guid.TryParse(entry.IdempotencyKey, out Guid scanId))
+        if (Guid.TryParse(entry.ScanId, out Guid scanId))
         {
           var rr = new ReconcileRequest
           {
@@ -378,5 +379,13 @@ public sealed class ReliableCommitQueue : IDisposable
   private void SafeLog(string msg)
   {
     try { Log?.Invoke(msg); } catch { }
+  }
+
+  private static string BuildOrderClosedIdempotencyKey(OrderClosedRequest req)
+  {
+    string scanId = req.ScanId.ToString();
+    if (req.RecoveredAfterClose == true && !string.IsNullOrWhiteSpace(req.OrderId))
+      return scanId + ":" + req.OrderId.Trim();
+    return scanId;
   }
 }
