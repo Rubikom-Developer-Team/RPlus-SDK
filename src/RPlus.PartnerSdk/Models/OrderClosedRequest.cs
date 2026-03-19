@@ -20,6 +20,9 @@ public sealed class OrderClosedRequest
   [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
   public string? RecoveryReason { get; set; }
 
+  [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+  public string? PersonFullName { get; set; }
+
   public decimal FinalOrderTotal { get; set; }
   public decimal? FinalOrderTotalBeforeDiscounts { get; set; }
   public decimal? BaseAmountWithoutSurcharge { get; set; }
